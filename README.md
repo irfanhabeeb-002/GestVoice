@@ -1,6 +1,6 @@
-# GestVoice – Malayalam Voice-Controlled Desktop Assistant
+# GestVoice – English and Malyalam Voice-Controlled Desktop Assistant
 
-GestVoice is a small Python desktop GUI that listens for Malayalam (and simple English) voice commands, uses a **local faster-whisper model** for transcription (no API key or internet required after model download), maps the recognized text to intents, and performs basic actions on Windows such as:
+GestVoice is a small Python desktop GUI that listens for simple English and Malayalam voice commands, uses a **local faster-whisper model** for transcription (no API key or internet required after model download), maps the recognized text to intents, and performs basic actions on Windows such as:
 
 - Creating a folder on your Desktop (or a configured base path).
 - Opening the web browser.
