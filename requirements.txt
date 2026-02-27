@@ -1,0 +1,9 @@
+sounddevice>=0.4.6
+scipy>=1.11.0
+numpy>=1.26.0
+python-dotenv>=1.0.0
+pyautogui>=0.9.54
+screen-brightness-control>=0.21.0
+pycaw>=20230407
+psutil>=5.9.0
+faster-whisper>=1.0.0
