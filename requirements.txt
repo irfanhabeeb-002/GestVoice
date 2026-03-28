@@ -4,6 +4,7 @@ scipy>=1.11.0
 numpy>=1.26.0
 python-dotenv>=1.0.0
 faster-whisper>=1.0.0
+mediapipe-silicon
 
 # Hand-gesture controller (camera + landmarks)
 opencv-python>=4.8.0
