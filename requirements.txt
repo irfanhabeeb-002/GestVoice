@@ -1,9 +1,19 @@
+# Voice UI + audio
 sounddevice>=0.4.6
 scipy>=1.11.0
 numpy>=1.26.0
 python-dotenv>=1.0.0
-pyautogui>=0.9.54
-screen-brightness-control>=0.21.0
-pycaw>=20230407
-psutil>=5.9.0
 faster-whisper>=1.0.0
+
+# Hand-gesture controller (camera + landmarks)
+opencv-python>=4.8.0
+mediapipe>=0.10.0
+pyautogui>=0.9.54
+
+# Optional: spoken time (GET_TIME intent)
+pyttsx3>=2.90
+
+# Windows only — volume/brightness inside Gesture_Controller.py
+pycaw>=20240210; sys_platform == "win32"
+comtypes>=1.2.0; sys_platform == "win32"
+screen-brightness-control>=0.21.0; sys_platform == "win32"

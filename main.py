@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from Gesture_Controller import run_gesture
 import threading
 import tkinter as tk
 from tkinter import ttk
@@ -14,6 +14,7 @@ LISTEN_DURATION_SECONDS = 4.0
 
 
 class GestVoiceApp:
+    
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("GestVoice")
@@ -25,7 +26,7 @@ class GestVoiceApp:
 
         self._listening = False
         self._stop_event = threading.Event()
-
+        self.gesture_mode_active = False
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -89,8 +90,28 @@ class GestVoiceApp:
         except WhisperClientError as exc:
             self._update_after_error(str(exc))
             return
-
+        print("🧠 Transcript:", transcript)
         intent = parse_command(transcript)
+
+
+        if intent.name == "START_GESTURE" and not self.gesture_mode_active:
+            self.gesture_mode_active = True
+
+            self.status_var.set("Switching to gesture mode...")
+            self.root.update()
+
+            self.status_var.set("Gesture Mode Active")
+            self.action_var.set("Use gesture. Show exit gesture to return.")
+
+            # 🔥 HIDE VOICE WINDOW
+            self.root.iconify()
+
+            start_gesture()
+
+            self._listening = False
+            return
+
+        print("🎯 Intent: ", intent)
         action_result: ActionResult = execute_intent(intent)
 
         def _update_ui() -> None:
@@ -113,13 +134,67 @@ class GestVoiceApp:
 
         self.root.after(0, _ui)
 
+def check_gesture_process(app):
+    global gesture_process
 
-def main() -> None:
+    if gesture_process and gesture_process.poll() is not None:
+        print("Gesture ended → resuming voice")
+
+        gesture_process = None
+        app.gesture_mode_active = False
+
+        # 🔥 RESTORE WINDOW
+        app.root.deiconify()
+        app.root.lift()
+        app.root.attributes('-topmost', True)
+        app.root.after(100, lambda: app.root.attributes('-topmost', False))
+
+        # UI update
+        app.status_var.set("Back to Voice Mode")
+        app.action_var.set("Gesture mode closed")
+
+        # 🔥 AUTO RESUME
+        app.on_toggle_listening()
+
+    app.root.after(1000, lambda: check_gesture_process(app))
+    
+
+import subprocess
+import sys
+
+gesture_process = None
+
+def start_gesture():
+    global gesture_process
+
+    if gesture_process is None or gesture_process.poll() is not None:
+        gesture_process = subprocess.Popen([sys.executable, "Gesture_Controller.py"])
+
+
+def stop_gesture():
+    global gesture_process
+    if gesture_process:
+        gesture_process.terminate()
+        gesture_process = None
+
+
+def main():
     root = tk.Tk()
     app = GestVoiceApp(root)
-    root.mainloop()
 
+    # 🔥 DELAYED FOCUS FIX
+    def bring_to_front():
+        root.deiconify()
+        root.lift()
+        root.attributes('-topmost', True)
+        root.after(200, lambda: root.attributes('-topmost', False))
+        root.focus_force()
+
+    root.after(300, bring_to_front)
+
+    check_gesture_process(app)
+
+    root.mainloop()
 
 if __name__ == "__main__":
     main()
-

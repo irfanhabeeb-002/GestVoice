@@ -1,10 +1,18 @@
 from __future__ import annotations
-
+from datetime import datetime
+from config import get_settings
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+import re
 
 
 class IntentName:
+    SET_BRIGHTNESS = "SET_BRIGHTNESS"
+    SET_VOLUME = "SET_VOLUME"
+    SEARCH_GOOGLE = "SEARCH_GOOGLE"
+    OPEN_APP_DYNAMIC = "OPEN_APP_DYNAMIC"
+    SEARCH_MAP = "SEARCH_MAP"
+    GET_TIME = "GET_TIME"
     CREATE_FOLDER = "CREATE_FOLDER"
     OPEN_BROWSER = "OPEN_BROWSER"
     OPEN_RECYCLE_BIN = "OPEN_RECYCLE_BIN"
@@ -14,6 +22,10 @@ class IntentName:
     MUTE = "MUTE"
     BRIGHTNESS_UP = "BRIGHTNESS_UP"
     BRIGHTNESS_DOWN = "BRIGHTNESS_DOWN"
+    MINIMIZE_WINDOW = "MINIMIZE_WINDOW"
+    MAXIMIZE_WINDOW = "MAXIMIZE_WINDOW"
+    OPEN_FOLDER = "OPEN_FOLDER"
+    START_GESTURE = "START_GESTURE"
     UNKNOWN = "UNKNOWN"
 
 
@@ -49,6 +61,12 @@ PHRASE_MAP = {
         "open browser",
         "open the browser",
         "open chrome",
+    ], 
+    IntentName.START_GESTURE: [
+        "start gesture",
+        "start the gesture",
+        "start gesture control",
+        "start gesture control",
     ],
     IntentName.OPEN_RECYCLE_BIN: [
         "recycle bin thurakkuka",
@@ -114,18 +132,96 @@ def parse_command(text: Optional[str]) -> Intent:
 
     normalized = _normalize(text)
 
-    for intent_name, phrases in PHRASE_MAP.items():
-        for phrase in phrases:
-            if phrase in normalized:
-                if intent_name == IntentName.CREATE_FOLDER:
-                    folder_name = _extract_folder_name(normalized, phrase)
-                    params = {"folder_name": folder_name} if folder_name else {}
-                    return Intent(name=intent_name, parameters=params)
-                return Intent(name=intent_name)
+    # -------------------------
+    # 1. NUMERIC COMMANDS
+    # -------------------------
+    match = re.search(r'(\d{1,3})\s*%?\s*(brightness)', normalized)
+    if match:
+        value = int(match.group(1))
+        return Intent(IntentName.SET_BRIGHTNESS, {"value": value})
 
-    return Intent(name=IntentName.UNKNOWN)
+    match = re.search(r'(\d{1,3})\s*%?\s*(volume)', normalized)
+    if match:
+        value = int(match.group(1))
+        return Intent(IntentName.SET_VOLUME, {"value": value})
 
+    # -------------------------
+    # 2. GOOGLE SEARCH
+    # -------------------------
+    if normalized.startswith("google "):
+        query = normalized.replace("google ", "")
+        return Intent(IntentName.SEARCH_GOOGLE, {"query": query})
 
+    # -------------------------
+    # 3. MAP SEARCH
+    # -------------------------
+    if normalized.startswith("map ") or normalized.startswith("maps "):
+        query = normalized.split(" ", 1)[1]
+        return Intent(IntentName.SEARCH_MAP, {"query": query})
+
+    # -------------------------
+    # 4. OPEN APP (DYNAMIC)
+    # -------------------------
+    if normalized.startswith("open "):
+        app = normalized.replace("open ", "")
+        return Intent(IntentName.OPEN_APP_DYNAMIC, {"app": app})
+
+    # -------------------------
+    # 5. CREATE FOLDER
+    # -------------------------
+    if "create folder" in normalized:
+        name = normalized.replace("create folder", "").strip()
+        return Intent(IntentName.CREATE_FOLDER, {"folder_name": name})
+
+    # -------------------------
+    # 6. TIME / DATE
+    # -------------------------
+    if "time" in normalized or "date" in normalized:
+        return Intent(IntentName.GET_TIME)
+
+    if "gesture" in normalized:
+        return Intent(IntentName.START_GESTURE)
+
+    # -------------------------
+    # 7. SIMPLE COMMANDS
+    # -------------------------
+    if "mute" in normalized:
+        return Intent(IntentName.MUTE)
+
+    if "volume up" in normalized:
+        return Intent(IntentName.VOLUME_UP)
+
+    if "volume down" in normalized:
+        return Intent(IntentName.VOLUME_DOWN)
+
+    if "brightness up" in normalized:
+        return Intent(IntentName.BRIGHTNESS_UP)
+
+    if "brightness down" in normalized:
+        return Intent(IntentName.BRIGHTNESS_DOWN)
+
+    if "close" in normalized:
+        return Intent(IntentName.CLOSE_WINDOW)
+
+    if "browser" in normalized:
+        return Intent(IntentName.OPEN_BROWSER)
+
+    if "trash" in normalized or "recycle bin" in normalized:
+        return Intent(IntentName.OPEN_RECYCLE_BIN)
+    
+    if "minimize" in normalized:
+        return Intent(IntentName.MINIMIZE_WINDOW)
+
+    if "maximize" in normalized:
+        return Intent(IntentName.MAXIMIZE_WINDOW)
+
+    if "open folder" in normalized:
+        name = normalized.replace("open folder", "").strip()
+        return Intent(IntentName.OPEN_FOLDER, {"folder_name": name})
+
+    return Intent(IntentName.UNKNOWN)
+
+    
 def _extract_folder_name(text: str, trigger_phrase: str) -> Optional[str]:
     """
     Very small heuristic to pull a folder name following the trigger phrase.
