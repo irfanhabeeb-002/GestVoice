@@ -1,5 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
+from datetime import datetime, timedelta
 from config import get_settings
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -183,6 +184,16 @@ def parse_command(text: Optional[str]) -> Intent:
     # -------------------------
     # 6. TIME / DATE
     # -------------------------
+    
+    if "yesterday" in normalized:
+        return Intent("GET_YESTERDAY")
+    
+    if "day after tomorrow" in normalized:
+        return Intent("GET_DAY_AFTER_TOMORROW")
+
+    if "tomorrow" in normalized:
+        return Intent("GET_TOMORROW")
+
     if "time" in normalized:
         if "date" in normalized or "day" in normalized:
             return Intent("GET_FULL_INFO")
@@ -192,6 +203,9 @@ def parse_command(text: Optional[str]) -> Intent:
         if "day" in normalized:
             return Intent("GET_DATE_DAY")
         return Intent("GET_DATE")
+
+    if "today" in normalized:
+        return Intent("GET_DATE_DAY")  
 
     if "day" in normalized:
         return Intent("GET_DAY")

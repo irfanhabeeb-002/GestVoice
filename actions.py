@@ -4,12 +4,13 @@ import subprocess
 import time
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 try:
     import pyttsx3
+    engine = pyttsx3.init()
 except ImportError:
     pyttsx3 = None
-    
+
 from config import get_settings
 from nlu import Intent, IntentName
 from logger import log
@@ -237,7 +238,7 @@ def get_time(_: Intent) -> ActionResult:
 
 
     if pyttsx3:
-        engine = pyttsx3.init()
+
         engine.say(text)
         engine.runAndWait()
 
@@ -248,7 +249,7 @@ def get_date(_: Intent) -> ActionResult:
     text = now.strftime("%d %B %Y")
 
     if pyttsx3:
-        engine = pyttsx3.init()
+
         engine.say(text)
         engine.runAndWait()
 
@@ -259,7 +260,7 @@ def get_day(_: Intent) -> ActionResult:
     text = now.strftime("%A")
 
     if pyttsx3:
-        engine = pyttsx3.init()
+
         engine.say(text)
         engine.runAndWait()
 
@@ -270,7 +271,7 @@ def get_date_day(_: Intent) -> ActionResult:
     text = now.strftime("%A, %d %B %Y")
 
     if pyttsx3:
-        engine = pyttsx3.init()
+
         engine.say(text)
         engine.runAndWait()
 
@@ -281,13 +282,38 @@ def get_full_info(_: Intent) -> ActionResult:
     text = now.strftime("%A, %d %B %Y, %I:%M %p")
 
     if pyttsx3:
-        engine = pyttsx3.init()
+
         engine.say(text)
         engine.runAndWait()
 
     return ActionResult(True, text)
 
+def get_yesterday(_: Intent) -> ActionResult:
+    now = datetime.now() - timedelta(days=1)
+    text = now.strftime("%A, %d %B %Y")
 
+    engine.say(text)
+    engine.runAndWait()
+
+    return ActionResult(True, text)
+
+def get_tomorrow(_: Intent) -> ActionResult:
+    now = datetime.now() + timedelta(days=1)
+    text = now.strftime("%A, %d %B %Y")
+
+    engine.say(text)
+    engine.runAndWait()
+
+    return ActionResult(True, text)
+
+def get_day_after_tomorrow(_: Intent) -> ActionResult:
+    now = datetime.now() + timedelta(days=2)
+    text = now.strftime("%A, %d %B %Y")
+
+    engine.say(text)
+    engine.runAndWait()
+
+    return ActionResult(True, text)
 
 
 def speak(text):
@@ -347,6 +373,15 @@ def execute_intent(intent: Intent) -> ActionResult:
 
     elif intent.name == "GET_FULL_INFO":
         return get_full_info(intent)
+
+    elif intent.name == "GET_YESTERDAY":
+        return get_yesterday(intent)
+
+    elif intent.name == "GET_TOMORROW":
+        return get_tomorrow(intent)
+
+    elif intent.name == "GET_DAY_AFTER_TOMORROW":
+        return get_day_after_tomorrow(intent)
 
     else:
         log("Unknown intent received")
