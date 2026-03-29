@@ -1,14 +1,15 @@
 from __future__ import annotations
-
 import os
 import subprocess
 import time
+
 from dataclasses import dataclass
-import datetime
+from datetime import datetime
 try:
     import pyttsx3
 except ImportError:
     pyttsx3 = None
+    
 from config import get_settings
 from nlu import Intent, IntentName
 from logger import log
@@ -231,8 +232,9 @@ def maximize_window(_: Intent) -> ActionResult:
 
 
 def get_time(_: Intent) -> ActionResult:
-    now = datetime.datetime.now()
-    text = now.strftime("%A %I:%M %p")
+    now = datetime.now()
+    text = now.strftime("%I:%M %p")   # ✅ time only
+
 
     if pyttsx3:
         engine = pyttsx3.init()
@@ -241,6 +243,57 @@ def get_time(_: Intent) -> ActionResult:
 
     return ActionResult(True, text)
 
+def get_date(_: Intent) -> ActionResult:
+    now = datetime.now()
+    text = now.strftime("%d %B %Y")
+
+    if pyttsx3:
+        engine = pyttsx3.init()
+        engine.say(text)
+        engine.runAndWait()
+
+    return ActionResult(True, text)
+
+def get_day(_: Intent) -> ActionResult:
+    now = datetime.now()
+    text = now.strftime("%A")
+
+    if pyttsx3:
+        engine = pyttsx3.init()
+        engine.say(text)
+        engine.runAndWait()
+
+    return ActionResult(True, text)
+
+def get_date_day(_: Intent) -> ActionResult:
+    now = datetime.now()
+    text = now.strftime("%A, %d %B %Y")
+
+    if pyttsx3:
+        engine = pyttsx3.init()
+        engine.say(text)
+        engine.runAndWait()
+
+    return ActionResult(True, text)
+
+def get_full_info(_: Intent) -> ActionResult:
+    now = datetime.now()
+    text = now.strftime("%A, %d %B %Y, %I:%M %p")
+
+    if pyttsx3:
+        engine = pyttsx3.init()
+        engine.say(text)
+        engine.runAndWait()
+
+    return ActionResult(True, text)
+
+
+
+
+def speak(text):
+    tts = gTTS(text)
+    tts.save("temp.mp3")
+    os.system("afplay temp.mp3")
 
 def execute_intent(intent: Intent) -> ActionResult:
     log(f"Executing action: {intent.name}")  # log intent name
@@ -270,8 +323,6 @@ def execute_intent(intent: Intent) -> ActionResult:
         return search_google(intent)
     if intent.name == IntentName.OPEN_APP_DYNAMIC:
         return open_app_dynamic(intent)
-    if intent.name == IntentName.GET_TIME:
-        return get_time(intent)
     if intent.name == IntentName.SEARCH_MAP:
         return search_maps(intent)
     if intent.name == IntentName.MINIMIZE_WINDOW:
@@ -282,4 +333,21 @@ def execute_intent(intent: Intent) -> ActionResult:
         return open_folder(intent)
     elif intent.name == "START_GESTURE":
         return ActionResult(success=True, user_message="Switching to gesture mode")
-    return ActionResult(False, "Command not recognized.")
+    elif intent.name == "GET_TIME":
+        return get_time(intent)
+
+    elif intent.name == "GET_DATE":
+        return get_date(intent)
+
+    elif intent.name == "GET_DAY":
+        return get_day(intent)
+
+    elif intent.name == "GET_DATE_DAY":
+        return get_date_day(intent)
+
+    elif intent.name == "GET_FULL_INFO":
+        return get_full_info(intent)
+
+    else:
+        log("Unknown intent received")
+        return ActionResult(False, "Command not recognized")

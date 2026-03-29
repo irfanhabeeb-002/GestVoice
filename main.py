@@ -28,6 +28,7 @@ class GestVoiceApp:
         self._stop_event = threading.Event()
         self.gesture_mode_active = False
         self.voice_active = True
+        self.whisper_client = WhisperClient()   
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -93,13 +94,19 @@ class GestVoiceApp:
         self.root.after(0, lambda: self.status_var.set("Processing..."))
 
         try:
-            client = WhisperClient()
-            result = client.transcribe(audio_bytes)
+            result = self.whisper_client.transcribe(audio_bytes)
             transcript = result.text
         except WhisperClientError as exc:
             self._update_after_error(str(exc))
             return
         log(f"Transcript: {transcript}")   # log transcript
+
+        if not transcript or len(transcript.strip()) < 2:
+            log("Ignored empty/noise input")
+            self._update_after_error("No speech detected")
+            return
+
+
         intent = parse_command(transcript)
         log(f"Intent detected: {intent.name}")
 
@@ -118,6 +125,7 @@ class GestVoiceApp:
             self.root.iconify()
 
             start_gesture()
+            return
 
         if intent.name == "EXIT":
             log("Voice exit command detected")
@@ -138,17 +146,31 @@ class GestVoiceApp:
             return
 
         print("🎯 Intent: ", intent)
-        action_result: ActionResult = execute_intent(intent)
 
-        def _update_ui() -> None:
+        try:
+            action_result: ActionResult = execute_intent(intent)
+        except Exception as e:
+            log(f"Execution error: {e}")
+            self._update_after_error("Action failed")
+            return
+
+        if action_result.success:
+            log(f"Response: {action_result.user_message}")
+        else:
+            log("Action failed")
+
+        
+        self.root.after(0, lambda ar=action_result: self._update_ui(transcript, ar))
+
+
+    def _update_ui(self, transcript, action_result: ActionResult) -> None:
             self.transcript_var.set(transcript or "(empty)")
             self.action_var.set(action_result.user_message)
             self.status_var.set("Done.")
             self.progress.stop()
             self.toggle_button.config(text="Start Listening", state="normal")
             self._listening = False
-
-        self.root.after(0, _update_ui)
+            
 
     def _update_after_error(self, message: str) -> None:
         def _ui() -> None:

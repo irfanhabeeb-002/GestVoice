@@ -13,7 +13,6 @@ class IntentName:
     SEARCH_GOOGLE = "SEARCH_GOOGLE"
     OPEN_APP_DYNAMIC = "OPEN_APP_DYNAMIC"
     SEARCH_MAP = "SEARCH_MAP"
-    GET_TIME = "GET_TIME"
     CREATE_FOLDER = "CREATE_FOLDER"
     OPEN_BROWSER = "OPEN_BROWSER"
     OPEN_RECYCLE_BIN = "OPEN_RECYCLE_BIN"
@@ -27,6 +26,11 @@ class IntentName:
     MAXIMIZE_WINDOW = "MAXIMIZE_WINDOW"
     OPEN_FOLDER = "OPEN_FOLDER"
     START_GESTURE = "START_GESTURE"
+    GET_TIME = "GET_TIME"
+    GET_DATE = "GET_DATE"
+    GET_DAY = "GET_DAY"
+    GET_DATE_DAY = "GET_DATE_DAY"
+    GET_FULL_INFO = "GET_FULL_INFO"
     UNKNOWN = "UNKNOWN"
     EXIT = "EXIT"
 
@@ -179,8 +183,18 @@ def parse_command(text: Optional[str]) -> Intent:
     # -------------------------
     # 6. TIME / DATE
     # -------------------------
-    if "time" in normalized or "date" in normalized:
-        return Intent(IntentName.GET_TIME)
+    if "time" in normalized:
+        if "date" in normalized or "day" in normalized:
+            return Intent("GET_FULL_INFO")
+        return Intent("GET_TIME")
+
+    if "date" in normalized:
+        if "day" in normalized:
+            return Intent("GET_DATE_DAY")
+        return Intent("GET_DATE")
+
+    if "day" in normalized:
+        return Intent("GET_DAY")
 
     if "gesture" in normalized:
         return Intent(IntentName.START_GESTURE)
