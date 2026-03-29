@@ -11,7 +11,7 @@ except ImportError:
     pyttsx3 = None
 from config import get_settings
 from nlu import Intent, IntentName
-
+from logger import log
 
 @dataclass
 class ActionResult:
@@ -243,6 +243,7 @@ def get_time(_: Intent) -> ActionResult:
 
 
 def execute_intent(intent: Intent) -> ActionResult:
+    log(f"Executing action: {intent.name}")  # log intent name
     if intent.name == IntentName.CREATE_FOLDER:
         return create_folder(intent)
     if intent.name == IntentName.OPEN_BROWSER:

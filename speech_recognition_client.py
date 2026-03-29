@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional
-
 import os
 import tempfile
-
 from faster_whisper import WhisperModel
-
+from logger import log
 
 class WhisperClientError(Exception):
     pass

@@ -4,6 +4,7 @@ from config import get_settings
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 import re
+from logger import log
 
 
 class IntentName:
@@ -27,6 +28,7 @@ class IntentName:
     OPEN_FOLDER = "OPEN_FOLDER"
     START_GESTURE = "START_GESTURE"
     UNKNOWN = "UNKNOWN"
+    EXIT = "EXIT"
 
 
 @dataclass
@@ -131,6 +133,7 @@ def parse_command(text: Optional[str]) -> Intent:
         return Intent(name=IntentName.UNKNOWN)
 
     normalized = _normalize(text)
+    log(f"Normalized command: {normalized}")  # log normalized command
 
     # -------------------------
     # 1. NUMERIC COMMANDS
@@ -181,6 +184,9 @@ def parse_command(text: Optional[str]) -> Intent:
 
     if "gesture" in normalized:
         return Intent(IntentName.START_GESTURE)
+
+    if "exit" in normalized:
+        return Intent("EXIT")
 
     # -------------------------
     # 7. SIMPLE COMMANDS

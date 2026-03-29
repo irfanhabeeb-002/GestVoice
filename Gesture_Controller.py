@@ -1,5 +1,5 @@
 # Imports
-
+from logger import log
 import cv2
 import mediapipe as mp
 import pyautogui
@@ -459,8 +459,9 @@ class Controller:
             Controller.exit_counter = 0
 
         if Controller.exit_counter > 15:
-            print("Exit gesture")
-            sys.exit(0)
+            log("Exit gesture detected")
+            GestureController.gc_mode = 0
+            return
 
         # 2. POSITION CONTROL
         if gesture not in [Gest.PALM, Gest.THUMB]:
@@ -601,7 +602,7 @@ class GestureController:
         landmark from mediapipe and passes it to 'handmajor' and 'handminor' for
         controlling.
         """
-        
+        log("Gesture mode started") 
         handmajor = HandRecog(HLabel.MAJOR)
         handminor = HandRecog(HLabel.MINOR)
 

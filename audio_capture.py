@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import threading
 from typing import Optional
-
+from logger import log
 import numpy as np
 import sounddevice as sd
 from scipy.io.wavfile import write as wav_write

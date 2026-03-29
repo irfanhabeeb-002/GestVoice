@@ -2,7 +2,7 @@ import os
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
-
+from logger import log
 
 load_dotenv()
 

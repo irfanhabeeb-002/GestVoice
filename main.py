@@ -3,7 +3,7 @@ from Gesture_Controller import run_gesture
 import threading
 import tkinter as tk
 from tkinter import ttk
-
+from logger import log
 from audio_capture import record_until_stop, RecordingError
 from nlu import parse_command
 from actions import execute_intent, ActionResult
@@ -27,6 +27,7 @@ class GestVoiceApp:
         self._listening = False
         self._stop_event = threading.Event()
         self.gesture_mode_active = False
+        self.voice_active = True
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -59,15 +60,23 @@ class GestVoiceApp:
         self.toggle_button.pack(side="left", padx=10)
 
     def on_toggle_listening(self) -> None:
-        if self._listening:
-            # User pressed again: request stop.
+        
+        if not self.voice_active:
+            log("Voice system is inactive")
+            self.status_var.set("Voice is disabled. Restart app to use again.")
+            return
+        
+        if self._listening and self.voice_active:
+            log("Stopping voice listening")
             self.status_var.set("Stopping...")
             self._stop_event.set()
             return
 
+
         self._listening = True
         self._stop_event.clear()
         self.status_var.set("Listening...")
+        log("Voice listening started") 
         self.toggle_button.config(text="Stop Listening", state="normal")
         self.progress.start(10)
 
@@ -90,11 +99,13 @@ class GestVoiceApp:
         except WhisperClientError as exc:
             self._update_after_error(str(exc))
             return
-        print("🧠 Transcript:", transcript)
+        log(f"Transcript: {transcript}")   # log transcript
         intent = parse_command(transcript)
+        log(f"Intent detected: {intent.name}")
 
 
         if intent.name == "START_GESTURE" and not self.gesture_mode_active:
+            log("Switching to gesture mode")
             self.gesture_mode_active = True
 
             self.status_var.set("Switching to gesture mode...")
@@ -108,7 +119,22 @@ class GestVoiceApp:
 
             start_gesture()
 
+        if intent.name == "EXIT":
+            log("Voice exit command detected")
+
+            stop_gesture()   # 🔥 ensure gesture also stops
+
+            self.voice_active = False
+            self._stop_event.set()
             self._listening = False
+
+            self.status_var.set("Shutting down...")
+            self.action_var.set("Closing application")
+
+            self.progress.stop()
+
+            self.root.after(500, self.root.destroy)
+
             return
 
         print("🎯 Intent: ", intent)
@@ -138,7 +164,7 @@ def check_gesture_process(app):
     global gesture_process
 
     if gesture_process and gesture_process.poll() is not None:
-        print("Gesture ended → resuming voice")
+        log("Gesture ended → resuming voice")
 
         gesture_process = None
         app.gesture_mode_active = False
@@ -154,7 +180,11 @@ def check_gesture_process(app):
         app.action_var.set("Gesture mode closed")
 
         # 🔥 AUTO RESUME
-        app.on_toggle_listening()
+        app._listening = False
+        app.status_var.set("Back to Voice Mode (Click to start listening)")
+        app.action_var.set("Gesture mode closed")
+        app.progress.stop()
+        app.toggle_button.config(text="Start Listening", state="normal")
 
     app.root.after(1000, lambda: check_gesture_process(app))
     
