@@ -147,28 +147,24 @@ def brightness_down(_: Intent) -> ActionResult:
 def set_brightness(intent: Intent) -> ActionResult:
     value = int(intent.parameters.get("value", 50))
 
-    try:
-        subprocess.run([
-            "osascript",
-            "-e",
-            f'set volume output volume {value}'
-        ])
-    except Exception as exc:
-        return ActionResult(False, f"Failed: {exc}")
+    subprocess.run(["brightness", str(value / 100)])
 
     return ActionResult(True, f"Brightness set to {value}%")
 
 def set_volume(intent: Intent) -> ActionResult:
     value = int(intent.parameters.get("value", 50))
 
+    # Clamp value (VERY IMPORTANT)
+    value = max(0, min(100, value))
+
     try:
         subprocess.run([
             "osascript",
             "-e",
             f"set volume output volume {value}"
-        ])
+        ], check=True)
     except Exception as exc:
-        return ActionResult(False, f"Failed: {exc}")
+        return ActionResult(False, f"Failed to set volume: {exc}")
 
     return ActionResult(True, f"Volume set to {value}%")
 
@@ -196,7 +192,20 @@ def search_maps(intent: Intent) -> ActionResult:
     return ActionResult(True, f"Opening maps for {query}")
 
 def open_app_dynamic(intent: Intent) -> ActionResult:
-    app = intent.parameters.get("app", "")
+    app = intent.parameters.get("app", "").lower()
+
+    # Fix common app names
+    APP_MAP = {
+        "chrome": "Google Chrome",
+        "google chrome": "Google Chrome",
+        "browser": "Google Chrome",
+        "calculator": "Calculator",
+        "safari": "Safari",
+        "finder": "Finder",
+    }
+
+    app = APP_MAP.get(app, app)
+
 
     try:
         subprocess.Popen(["open", "-a", app])
@@ -384,5 +393,7 @@ def execute_intent(intent: Intent) -> ActionResult:
         return get_day_after_tomorrow(intent)
 
     else:
+        from nlu import fallback_response
+        message = fallback_response(intent.name if isinstance(intent.name, str) else "")
         log("Unknown intent received")
-        return ActionResult(False, "Command not recognized")
+        return ActionResult(False, message)
