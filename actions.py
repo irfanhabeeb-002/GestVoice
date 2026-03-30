@@ -367,7 +367,7 @@ def execute_intent(intent: Intent) -> ActionResult:
     if intent.name == IntentName.OPEN_FOLDER:
         return open_folder(intent)
     elif intent.name == "START_GESTURE":
-        return ActionResult(success=True, user_message="Switching to gesture mode")
+        return ActionResult(success=True, user_message="Gesture mode activated. Use hand gestures to control.")
     elif intent.name == "GET_TIME":
         return get_time(intent)
 

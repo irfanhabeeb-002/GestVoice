@@ -8,6 +8,7 @@ from audio_capture import record_until_stop, RecordingError
 from nlu import parse_command
 from actions import execute_intent, ActionResult
 from speech_recognition_client import WhisperClient, WhisperClientError
+from sarvam_speech_client import SarvamClient, SarvamClientError
 from datetime import datetime, timedelta
 
 
@@ -30,6 +31,12 @@ class GestVoiceApp:
         self.gesture_mode_active = False
         self.voice_active = True
         self.whisper_client = WhisperClient()   
+        try:
+            self.sarvam_client = SarvamClient()
+        except SarvamClientError as e:
+            # Keep Whisper functional even when Sarvam is not configured.
+            self.sarvam_client = None
+            log(f"Sarvam unavailable: {e}")
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -95,14 +102,46 @@ class GestVoiceApp:
         self.root.after(0, lambda: self.status_var.set("Processing..."))
 
         try:
-            result = self.whisper_client.transcribe(audio_bytes)
-            transcript = result.text
-        except WhisperClientError as exc:
-            self._update_after_error(str(exc))
-            return
+            if self.sarvam_client is None:
+                raise SarvamClientError("Sarvam client not initialized")
+
+            log("Using Sarvam STT...")
+
+            # 🔥 1. UI DISPLAY (Malayalam script)
+            display_result = self.sarvam_client.transcribe(
+                audio_bytes,
+                language_code="ml-IN",
+                mode="transcribe",
+            )
+            transcript_display = display_result.text
+
+            # 🔥 2. NLU INPUT (Romanized)
+            nlu_result = self.sarvam_client.transcribe(
+                audio_bytes,
+                language_code="ml-IN",
+                mode="translit",
+            )
+            transcript = nlu_result.text
+
+            log(f"Sarvam Display: {transcript_display}")
+            log(f"Sarvam NLU: {transcript}")
+
+        except SarvamClientError as e:
+            log(f"Sarvam failed, falling back to Whisper: {e}")
+            self.status_var.set("Processing (Whisper fallback)...")
+
+            try:
+                result = self.whisper_client.transcribe(audio_bytes)
+                transcript = result.text
+                transcript_display = result.text  # fallback same
+                log(f"[FALLBACK ACTIVE] Whisper Transcript: {transcript}")
+            except WhisperClientError as exc:
+                self._update_after_error(str(exc))
+                return
+
         log(f"Transcript: {transcript}")   # log transcript
 
-        if not transcript or len(transcript.strip()) < 2:
+        if not transcript_display or len(transcript_display.strip()) < 2:
             log("Ignored empty/noise input")
             self._update_after_error("No speech detected")
             return
@@ -113,7 +152,7 @@ class GestVoiceApp:
 
 
         if intent.name == "START_GESTURE" and not self.gesture_mode_active:
-            log("Switching to gesture mode")
+            log("Gesture mode activated. Use hand gestures to control.")
             self.gesture_mode_active = True
 
             self.status_var.set("Switching to gesture mode...")
@@ -161,7 +200,7 @@ class GestVoiceApp:
             log("Action failed")
 
         
-        self.root.after(0, lambda ar=action_result: self._update_ui(transcript, ar))
+        self.root.after(0, lambda ar=action_result: self._update_ui(transcript_display, ar))
 
 
     def _update_ui(self, transcript, action_result: ActionResult) -> None:

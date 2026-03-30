@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from config import get_settings
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
+def similarity(a, b):
+    return SequenceMatcher(None, a, b).ratio()
 from typing import Dict, List, Optional
 import re
 from logger import log
@@ -53,12 +55,21 @@ def _normalize(text: str) -> str:
     normalized = " ".join(text.strip().lower().split())
     # Handle common spelling/pronunciation variants
     normalized = normalized.replace("thurakkuga", "thurakkuka")
-    normalized = normalized.replace("koottu", "kootu")
-    normalized = normalized.replace("kurakku", "kurakkan")
     return normalized
 
 def clean_text(text):
     return text.lower().strip()
+
+COMMAND_KEYWORDS = {
+    "open": ["open", "thurakku"],
+    "chrome": ["chrome", "browser"],
+
+    "volume": ["volume"],
+    "down": ["down", "kurakkan"],
+    "up": ["up", "kootu", "koottu"],
+
+    "brightness": ["brightness", "lightness", "bright"],
+}
 
 
 def normalize_text(text: str) -> str:
@@ -169,6 +180,53 @@ MALAYALAM_MAP = {
     "brightness down": ["velicham kurakkan"],
 }
 
+def match_word(word, choices):
+    best = None
+    best_score = 0
+
+    for c in choices:
+        score = similarity(word, c)
+        if score > best_score:
+            best_score = score
+            best = c
+
+    if best_score > 0.6:
+        return best
+    return None
+
+def extract_intent_tokens(text):
+    words = text.split()
+    matched = []
+
+    for w in words:
+        for key, variants in COMMAND_KEYWORDS.items():
+            if match_word(w, variants):
+                matched.append(key)
+
+    return matched
+
+def detect_intent_from_tokens(tokens):
+    if "open" in tokens and "chrome" in tokens:
+        return Intent(IntentName.OPEN_APP_DYNAMIC, {"app": "chrome"})
+
+    if "volume" in tokens and "down" in tokens:
+        return Intent(IntentName.VOLUME_DOWN)
+
+    if "volume" in tokens and "up" in tokens:
+        return Intent(IntentName.VOLUME_UP)
+    
+    if "brightness" in tokens and "up" in tokens:
+        return Intent(IntentName.BRIGHTNESS_UP)
+
+    if "brightness" in tokens and "down" in tokens:
+        return Intent(IntentName.BRIGHTNESS_DOWN)
+
+    if "time" in tokens:
+        return Intent(IntentName.GET_TIME)
+
+    return Intent(IntentName.UNKNOWN)
+
+
 
 def map_malayalam(text):
     for key, variants in MALAYALAM_MAP.items():
@@ -190,90 +248,163 @@ def is_valid_command(text):
 
 def parse_command(text: Optional[str]) -> Intent:
     if not text:
-        return Intent(IntentName.UNKNOWN)
+        return Intent(name=IntentName.UNKNOWN)
 
+    # STEP 1: Basic validation
     if not is_valid_command(text):
         return Intent(IntentName.UNKNOWN)
 
-    # 🔥 Normalize
+    # STEP 2: Normalize text
     text = normalize_text(text)
-    text = map_malayalam(text)
-    normalized = _normalize(text)
 
+    # STEP 3: Malayalam mapping
+    text = map_malayalam(text)
+
+    # STEP 4: Final normalization
+    normalized = _normalize(text)
     log(f"Normalized command: {normalized}")
 
-    # -------------------------
-    # ✅ 1. STRONG PHRASE MATCH (PRIMARY)
-    # -------------------------
     for intent_name, phrases in PHRASE_MAP.items():
         for phrase in phrases:
             if phrase in normalized:
                 return Intent(intent_name)
 
+    # 🔥 FIRST: fuzzy handling
+    fuzzy_intent = process_text(normalized)
+    if fuzzy_intent.name != IntentName.UNKNOWN:
+        log(f"Fuzzy intent detected: {fuzzy_intent}")
+        return fuzzy_intent
+
+    # THEN: regex + rules
     # -------------------------
-    # ✅ 2. NUMBER COMMANDS
+    #  SET VOLUME / BRIGHTNESS (STRONG MATCH)
     # -------------------------
+
+    # Volume (set to X)
     match = re.search(r'(?:set|change)?\s*volume\s*(?:to)?\s*(\d{1,3})', normalized)
     if match:
-        return Intent(IntentName.SET_VOLUME, {"value": int(match.group(1))})
+        value = int(match.group(1))
+        return Intent(IntentName.SET_VOLUME, {"value": value})
 
+    # Brightness (set to X)
     match = re.search(r'(?:set|change)?\s*brightness\s*(?:to)?\s*(\d{1,3})', normalized)
     if match:
-        return Intent(IntentName.SET_BRIGHTNESS, {"value": int(match.group(1))})
+        value = int(match.group(1))
+        return Intent(IntentName.SET_BRIGHTNESS, {"value": value})
 
     # -------------------------
-    # ✅ 3. DATE / TIME / DAY
+    #  GOOGLE SEARCH
     # -------------------------
+    if normalized.startswith("google "):
+        query = normalized.replace("google ", "")
+        return Intent(IntentName.SEARCH_GOOGLE, {"query": query})
+
+    # -------------------------
+    #  MAP SEARCH
+    # -------------------------
+    if normalized.startswith("map ") or normalized.startswith("maps "):
+        query = normalized.split(" ", 1)[1]
+        return Intent(IntentName.SEARCH_MAP, {"query": query})
+
+
+    #  CREATE FOLDER
+    # -------------------------
+    if "create folder" in normalized:
+        name = normalized.replace("create folder", "").strip()
+        return Intent(IntentName.CREATE_FOLDER, {"folder_name": name})
+
+    # -------------------------
+    #  TIME / DATE
+    # -------------------------
+
     if "naale" in normalized:
         return Intent("GET_TOMORROW")
 
     if "mattannaal" in normalized:
         return Intent("GET_DAY_AFTER_TOMORROW")
 
-    if "yesterday" in normalized or "innale" in normalized:
+    if "yesterday" in normalized:
         return Intent("GET_YESTERDAY")
+    
+    if "day after tomorrow" in normalized:
+        return Intent("GET_DAY_AFTER_TOMORROW")
 
-    if "time" in normalized or "samayam" in normalized:
+    if "tomorrow" in normalized:
+        return Intent("GET_TOMORROW")
+
+    TIME_KEYWORDS = ["time", "current time", "what time", "samayam"]
+    DATE_KEYWORDS = ["date", "today date", "thiyathi", "theeyathi"]    
+    DAY_KEYWORDS = ["day", "today", "innu", "inn", "divasam"]
+
+    
+
+    if any(k in normalized for k in TIME_KEYWORDS):
+        if any(k in normalized for k in DATE_KEYWORDS + DAY_KEYWORDS):
+            return Intent(IntentName.GET_FULL_INFO)
         return Intent(IntentName.GET_TIME)
 
-    if "thiyathi" in normalized or "date" in normalized:
+    if any(k in normalized for k in DATE_KEYWORDS):
+        if any(k in normalized for k in DAY_KEYWORDS):
+            return Intent(IntentName.GET_DATE_DAY)
         return Intent(IntentName.GET_DATE)
 
-    if "divasam" in normalized or "day" in normalized:
+    if any(k in normalized for k in DAY_KEYWORDS):
         return Intent(IntentName.GET_DAY)
 
-    # -------------------------
-    # ✅ 4. SIMPLE COMMANDS
-    # -------------------------
-    if "mute" in normalized:
-        return Intent(IntentName.MUTE)
+    if "date" in normalized:
+        if "day" in normalized:
+            return Intent("GET_DATE_DAY")
+        return Intent("GET_DATE")
 
-    if "volume" in normalized:
-        if "up" in normalized or "increase" in normalized or "kootu" in normalized or "koottu" in normalized:
-            return Intent(IntentName.VOLUME_UP)
+    if "today" in normalized:
+        return Intent("GET_DATE_DAY")  
 
-        if "down" in normalized or "decrease" in normalized or "kurakkan" in normalized:
-            return Intent(IntentName.VOLUME_DOWN)
-        
-    if "brightness" in normalized:
-        if "up" in normalized or "increase" in normalized or "kootu" in normalized or "koottu" in normalized:
-            return Intent(IntentName.BRIGHTNESS_UP)
-
-        if "down" in normalized or "decrease" in normalized  or "kurakkan" in normalized:
-            return Intent(IntentName.BRIGHTNESS_DOWN)
-
-    if "close" in normalized:
-        return Intent(IntentName.CLOSE_WINDOW)
+    if "day" in normalized:
+        return Intent("GET_DAY")
 
     if "gesture" in normalized:
         return Intent(IntentName.START_GESTURE)
 
     if "exit" in normalized:
-        return Intent(IntentName.EXIT)
+        return Intent("EXIT")
+
+    # -------------------------
+    #  SIMPLE COMMANDS
+    # -------------------------
+    if "mute" in normalized:
+        return Intent(IntentName.MUTE)
+
+    if "volume" in normalized and ("up" in normalized or "kootu" in normalized):
+        return Intent(IntentName.VOLUME_UP)
+
+    if "decrease volume" in normalized:
+        return Intent(IntentName.VOLUME_DOWN)
+
+    if "increase brightness" in normalized:
+        return Intent(IntentName.BRIGHTNESS_UP)
+
+    if "decrease brightness" in normalized:
+        return Intent(IntentName.BRIGHTNESS_DOWN)       
+
+    
+    if "volume down" in normalized:
+        return Intent(IntentName.VOLUME_DOWN)
+
+    if "brightness up" in normalized:
+        return Intent(IntentName.BRIGHTNESS_UP)
+
+    if "brightness down" in normalized:
+        return Intent(IntentName.BRIGHTNESS_DOWN)
+
+    if "close" in normalized:
+        return Intent(IntentName.CLOSE_WINDOW)
+
+    if "browser" in normalized:
+        return Intent(IntentName.OPEN_BROWSER)
 
     if "trash" in normalized or "recycle bin" in normalized:
         return Intent(IntentName.OPEN_RECYCLE_BIN)
-
+    
     if "minimize" in normalized:
         return Intent(IntentName.MINIMIZE_WINDOW)
 
@@ -284,26 +415,16 @@ def parse_command(text: Optional[str]) -> Intent:
         name = normalized.replace("open folder", "").strip()
         return Intent(IntentName.OPEN_FOLDER, {"folder_name": name})
 
-    # -------------------------
-    # ✅ 5. OPEN APP (SMART)
-    # -------------------------
-    if "chrome" in normalized:
-        return Intent(IntentName.OPEN_APP_DYNAMIC, {"app": "chrome"})
-
-    if "browser" in normalized:
-        return Intent(IntentName.OPEN_BROWSER)
-
-
-    if "open" in normalized or "thurakku" in normalized:
-        app = normalized.replace("open", "").replace("thurakku", "").strip()
+    if "recycle bin" in normalized or "trash" in normalized:
+        return Intent(IntentName.OPEN_RECYCLE_BIN)
+    
+    if "open" in normalized:
+        app = normalized.replace("open", "").strip()
         if not app:
             app = "chrome"
         return Intent(IntentName.OPEN_APP_DYNAMIC, {"app": app})
 
-    # -------------------------
-    # ❌ UNKNOWN
-    # -------------------------
-    log(f"Unknown command: {normalized}")
+    log(f"I understood you, but try commands like 'open chrome' or 'what is the time': {normalized}")
     return Intent(IntentName.UNKNOWN)
 
 def fallback_response(text):
