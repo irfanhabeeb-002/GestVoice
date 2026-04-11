@@ -83,10 +83,9 @@ def extract_app(normalized):
         "calculator": "calculator",
         "settings": "settings",
         "chrome": "chrome",
-        "whatsapp": "whatsapp",
+        "browser": "chrome",
         "telegram": "telegram",
-        "browser": "chrome"
-        
+        "whatsapp": "whatsapp"
     }
 
     for key in APP_KEYWORDS:
@@ -95,8 +94,7 @@ def extract_app(normalized):
 
     return None
 
-def is_malayalam(text: str) -> bool:
-    # Malayalam Unicode range
+def is_malayalam(text):
     return any('\u0D00' <= ch <= '\u0D7F' for ch in text)
 
 def is_english(text: str) -> bool:
@@ -126,6 +124,8 @@ def _normalize(text: str) -> str:
     normalized = normalized.replace("cat gesture", "start gesture")
     normalized = normalized.replace("chat gesture", "start gesture")
     normalized = normalized.replace("%", "")
+    normalized = normalized.replace("maappu", "map")
+    normalized = normalized.replace("maap", "map")
 
     normalized = re.sub(r'\b(to|the|a|uh|um|like|bro|yo|hey|my|please|can|you|me)\b', '', normalized)
     normalized = " ".join(normalized.split())
@@ -259,7 +259,10 @@ MALAYALAM_MAP = {
     "കുറയ്ക്കൂ": "down",
     "കാൽക്കുലേറ്റർ": "calculator",
     "നോട്ട്‌പാഡ്": "notepad",
-    "തുറക്കൂ": "open",
+    "മാപ്പ്": "map",
+    "ലൊക്കേഷൻ": "location",
+    "സ്ഥലം": "location",
+    "തുറക്കൂ": "open"
 }
 
 def map_malayalam(text):
@@ -295,27 +298,46 @@ def parse_command(text: Optional[str]) -> Intent:
     text = normalize_text(text)
     text = map_malayalam(text)
     normalized = _normalize(text)
+    
 
     log(f"Normalized command: {normalized}")
 
     # -------------------------
-    # 🔥 SEARCH (HIGH PRIORITY)
+    # 🔥 MAP SEARCH (HIGH PRIORITY) — FIXED
+    # -------------------------
+    if any(word in normalized for word in ["map", "maps", "location", "navigate", "direction"]):
+        words = normalized.split()
+
+        REMOVE_WORDS = {"map", "maps", "location", "navigate", "direction"}
+
+        filtered_words = [w for w in words if w not in REMOVE_WORDS]
+
+        query = " ".join(filtered_words).strip()
+
+        if not query:
+            query = "current location"
+
+        return Intent(IntentName.SEARCH_MAP, {"query": query})
+
+    # -------------------------
+    # 🔥 SEARCH (HIGH PRIORITY) — FIXED
     # -------------------------
     if any(word in normalized for word in ["search", "google", "find", "lookup", "look up"]):
-        query = re.sub(r'(search|google|find|lookup|look up)', '', normalized)
-        query = query.strip()
+        words = normalized.split()
+
+        REMOVE_WORDS = {
+            "search", "google", "find", "lookup", "look", "up",
+            "googleil", "il", "thirayoo", "thirayuka"
+        }
+
+        filtered_words = [w for w in words if w not in REMOVE_WORDS]
+
+        query = " ".join(filtered_words).strip()
+
         if not query:
             query = "google"
-        return Intent(IntentName.SEARCH_GOOGLE, {"query": query})
 
-    if "search" in normalized or "google" in normalized:
-        query = re.sub(r'(search|google|find|lookup|look up)', '', normalized).strip()
-        
-        if not query:
-            return Intent(IntentName.SEARCH_GOOGLE, {"query": "google"})
-        
         return Intent(IntentName.SEARCH_GOOGLE, {"query": query})
-
 
     # -------------------------
     # 🔥 CREATE FOLDER (SMART)
@@ -380,6 +402,14 @@ def parse_command(text: Optional[str]) -> Intent:
 
         if "down" in normalized or "decrease" in normalized:
             return Intent(IntentName.BRIGHTNESS_DOWN)
+
+    # -------------------------
+    #  WEATHER 
+    # -------------------------
+
+
+    if "weather" in normalized:
+        return Intent(IntentName.UNKNOWN)
 
     # -------------------------
     # ✅ DATE / TIME / DAY
@@ -474,6 +504,12 @@ def parse_command(text: Optional[str]) -> Intent:
             return Intent(IntentName.OPEN_APP_DYNAMIC, {"app": "chrome"})
         
         return Intent(IntentName.OPEN_APP_DYNAMIC, {"app": " ".join(words)})
+
+    # -------------------------
+    # 💬 SMALL TALK HANDLING
+    # -------------------------
+    if any(word in normalized for word in ["sukham", "sukhamano", "vishesham", "hello", "hi"]):
+        return Intent("SMALL_TALK")
 
     # -------------------------
     # ❌ UNKNOWN

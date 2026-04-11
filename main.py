@@ -106,21 +106,44 @@ class GestVoiceApp:
 
             log("Using Sarvam STT...")
 
-            # 🔥 1. UI DISPLAY (Malayalam script)
+            # 🔥 1. Malayalam script
             display_result = self.sarvam_client.transcribe(
                 audio_bytes,
                 language_code="ml-IN",
                 mode="transcribe",
             )
-            transcript_display = display_result.text
+            transcript_ml = display_result.text
 
-            # 🔥 2. NLU INPUT (Romanized)
+            # 🔥 2. Roman / English
             nlu_result = self.sarvam_client.transcribe(
                 audio_bytes,
                 language_code="ml-IN",
                 mode="translit",
             )
-            transcript = nlu_result.text
+            transcript_en = nlu_result.text
+
+
+            # 🔥 English detection (simple but effective)
+            def is_english_sentence(text):
+                common_english_words = {
+                    "what", "is", "the", "open", "close", "search",
+                    "time", "date", "weather", "today", "please",
+                    "how", "are", "you", "hello", "exit"
+                }
+
+                words = set(text.lower().split())
+                return len(words & common_english_words) >= 1
+
+
+            # 🔥 SMART DISPLAY
+            if is_english_sentence(transcript_en):
+                transcript_display = transcript_en   # English
+            else:
+                transcript_display = transcript_ml   # Malayalam
+
+            # 🔥 NLU ALWAYS USES ROMAN
+            transcript = transcript_en
+
 
             log(f"Sarvam Display: {transcript_display}")
             log(f"Sarvam NLU: {transcript}")
@@ -148,16 +171,6 @@ class GestVoiceApp:
 
         intent = parse_command(transcript)
         log(f"Intent detected: {intent.name}")
-
-
-        if intent.name == "UNKNOWN":
-            text = transcript.lower()
-
-            if "open" in text:
-                if any(app in text for app in ["chrome", "browser"]):
-                    intent.name = "OPEN_BROWSER"
-                elif any(app in text for app in ["vscode", "code", "notepad", "spotify", "calculator", "settings"]):
-                    intent.name = "OPEN_APP_DYNAMIC"
 
         if intent.name == "START_GESTURE" and not self.gesture_mode_active:
             log("Gesture mode activated. Use hand gestures to control.")

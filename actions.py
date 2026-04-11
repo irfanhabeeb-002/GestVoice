@@ -15,6 +15,8 @@ from config import get_settings
 from nlu import Intent, IntentName
 from logger import log
 
+
+
 @dataclass
 class ActionResult:
     success: bool
@@ -171,6 +173,9 @@ def set_volume(intent: Intent) -> ActionResult:
 def search_google(intent: Intent) -> ActionResult:
     query = intent.parameters.get("query", "")
 
+    import urllib.parse
+    query = urllib.parse.quote(query)
+
     try:
         subprocess.Popen([
             "open",
@@ -179,20 +184,30 @@ def search_google(intent: Intent) -> ActionResult:
     except Exception as exc:
         return ActionResult(False, str(exc))
 
-    return ActionResult(True, f"Searching Google for {query}")
+    return ActionResult(True, f"Searching Google for {urllib.parse.unquote(query)}")
 
 def search_maps(intent: Intent) -> ActionResult:
     query = intent.parameters.get("query", "")
 
-    subprocess.Popen([
-        "open",
-        f"https://www.google.com/maps/search/{query}"
-    ])
+    import urllib.parse
+    query = urllib.parse.quote(query)
 
-    return ActionResult(True, f"Opening maps for {query}")
+    try:
+        subprocess.Popen([
+            "open",
+            f"https://www.google.com/maps/search/{query}"
+        ])
+    except Exception as exc:
+        return ActionResult(False, str(exc))
+
+    return ActionResult(True, f"Opening Maps for {urllib.parse.unquote(query)}")
+
+    
 def open_app_dynamic(intent: Intent) -> ActionResult:
-    app = intent.parameters.get("app", "").lower()
-
+    app = intent.parameters.get("app", "").lower().strip()
+    # Fix garbage names from STT
+    app = app.replace("vsvsvscode", "vscode")
+    app = app.replace("vs code", "vscode")
     APP_MAP = {
         "chrome": "Google Chrome",
         "browser": "Google Chrome",
@@ -203,6 +218,7 @@ def open_app_dynamic(intent: Intent) -> ActionResult:
         "settings": "System Settings"
     }
 
+    
     app = APP_MAP.get(app, app)
 
     try:
@@ -365,6 +381,9 @@ def execute_intent(intent: Intent) -> ActionResult:
         return maximize_window(intent)
     if intent.name == IntentName.OPEN_FOLDER:
         return open_folder(intent)
+    if intent.name == "SMALL_TALK":
+        return ActionResult(True, "Hi, I'm doing well! How can I help you?")
+
     elif intent.name == "START_GESTURE":
         return ActionResult(success=True, user_message="Gesture mode activated. Use hand gestures to control.")
     elif intent.name == "GET_TIME":
