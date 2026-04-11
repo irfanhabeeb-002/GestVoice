@@ -190,30 +190,29 @@ def search_maps(intent: Intent) -> ActionResult:
     ])
 
     return ActionResult(True, f"Opening maps for {query}")
-
 def open_app_dynamic(intent: Intent) -> ActionResult:
     app = intent.parameters.get("app", "").lower()
 
-    # Fix common app names
     APP_MAP = {
         "chrome": "Google Chrome",
-        "google chrome": "Google Chrome",
         "browser": "Google Chrome",
+        "vscode": "Visual Studio Code",
+        "notepad": "TextEdit",  # mac default
+        "spotify": "Spotify",
         "calculator": "Calculator",
-        "safari": "Safari",
-        "finder": "Finder",
+        "settings": "System Settings"
     }
 
     app = APP_MAP.get(app, app)
 
-
     try:
         subprocess.Popen(["open", "-a", app])
-    except Exception as exc:
+    except Exception:
         return ActionResult(False, f"App not found: {app}")
 
     return ActionResult(True, f"Opening {app}")
 
+    
 def open_folder(intent: Intent) -> ActionResult:
     folder = intent.parameters.get("folder_name", "")
 

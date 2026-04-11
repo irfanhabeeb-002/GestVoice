@@ -36,11 +36,64 @@ class IntentName:
     UNKNOWN = "UNKNOWN"
     EXIT = "EXIT"
 
+NUMBER_WORDS = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
+    "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+    "ten": 10, "twenty": 20, "thirty": 30, "forty": 40,
+    "fifty": 50, "sixty": 60, "seventy": 70,
+    "eighty": 80, "ninety": 90, "hundred": 100
+}
+
+SYNONYMS = {
+    "calculator": ["calc"],
+    "vscode": ["code", "vs code"],
+    "browser": ["chrome", "google chrome"]
+}
+
+
+def words_to_number(text):
+    words = text.split()
+    total = 0
+    current = 0
+
+    for word in words:
+        if word in NUMBER_WORDS:
+            val = NUMBER_WORDS[word]
+            if val == 100:
+                current *= val
+            else:
+                current += val
+        else:
+            if current > 0:
+                total += current
+                current = 0
+
+    return total + current if (total + current) > 0 else None
 
 @dataclass
 class Intent:
     name: str
     parameters: Dict[str, str] = field(default_factory=dict)
+
+def extract_app(normalized):
+    APP_KEYWORDS = {
+        "vscode": "vscode",
+        "notepad": "notepad",
+        "spotify": "spotify",
+        "calculator": "calculator",
+        "settings": "settings",
+        "chrome": "chrome",
+        "whatsapp": "whatsapp",
+        "telegram": "telegram",
+        "browser": "chrome"
+        
+    }
+
+    for key in APP_KEYWORDS:
+        if key in normalized:
+            return APP_KEYWORDS[key]
+
+    return None
 
 def is_malayalam(text: str) -> bool:
     # Malayalam Unicode range
@@ -53,8 +106,48 @@ def _normalize(text: str) -> str:
     normalized = " ".join(text.strip().lower().split())
     # Handle common spelling/pronunciation variants
     normalized = normalized.replace("thurakkuga", "thurakkuka")
+    normalized = normalized.replace("kurakku", "down")
+    normalized = normalized.replace("kootu", "up")
+    normalized = normalized.replace("koottu", "up")
     normalized = normalized.replace("koottu", "kootu")
     normalized = normalized.replace("kurakku", "kurakkan")
+    normalized = normalized.replace("kurakkan", "down")
+    normalized = normalized.replace("kurakku", "down")
+    normalized = normalized.replace("kurakkan", "down")
+
+    normalized = normalized.replace("thurakku", "open")
+    normalized = normalized.replace("cheyyu", "")
+    normalized = normalized.replace("cyu", "")
+    normalized = normalized.replace("percentage", "")
+    normalized = normalized.replace("like", "")
+    normalized = normalized.replace("around", "")
+    normalized = normalized.replace("approximately", "")
+    normalized = normalized.replace("percent", "")
+    normalized = normalized.replace("cat gesture", "start gesture")
+    normalized = normalized.replace("chat gesture", "start gesture")
+    normalized = normalized.replace("%", "")
+
+    normalized = re.sub(r'\b(to|the|a|uh|um|like|bro|yo|hey|my|please|can|you|me)\b', '', normalized)
+    normalized = " ".join(normalized.split())
+    normalized = normalized.replace("can you", "")
+    normalized = normalized.replace("please", "")
+
+    if "calc" in normalized:
+        normalized = normalized.replace("calc", "calculator")
+
+    # FIX VS CODE NORMALIZATION (NO CASCADE)
+    normalized = normalized.replace("vs code", "vscode")
+
+    # ONLY replace standalone "code"
+    normalized = re.sub(r'\bcode\b', 'vscode', normalized)
+    if "kurakku" in normalized:
+        normalized = normalized.replace("kurakku", "down")
+
+    for key, variants in SYNONYMS.items():
+        for v in variants:
+            if v in normalized:
+                normalized = normalized.replace(v, key)
+
     return normalized
 
 def clean_text(text):
@@ -157,36 +250,26 @@ PHRASE_MAP = {
         "turn down the brightness",
     ],
 }
+
 MALAYALAM_MAP = {
-    "time": ["samayam"],
-    "day": ["divasam"],
-    "date": ["thiyathi", "theeyathi"],
-    "open": ["thurakku", "thurakkuka"],
-    "close": ["adakku", "adakkuka"],
-    "volume up": ["kootu"],
-    "volume down": ["kurakkan"],
-    "brightness up": ["velicham kootu"],
-    "brightness down": ["velicham kurakkan"],
+    "തിരയൂ": "search",
+    "ഗൂഗിളിൽ": "google",
+    "വോള്യം": "volume",
+    "ശബ്ദം": "volume",
+    "കുറയ്ക്കൂ": "down",
+    "കാൽക്കുലേറ്റർ": "calculator",
+    "നോട്ട്‌പാഡ്": "notepad",
+    "തുറക്കൂ": "open",
 }
 
-
 def map_malayalam(text):
-    for key, variants in MALAYALAM_MAP.items():
-        for v in variants:
-            if v in text:
-                text = text.replace(v, key)
+    for k, v in MALAYALAM_MAP.items():
+        text = text.replace(k, v)
     return text
 
+
 def is_valid_command(text):
-    if len(text) < 3:
-        return False
-
-    garbage_words = ["uh", "hmm", "noise"]
-    if any(g in text for g in garbage_words):
-        return False
-
-    return True
-
+    return bool(text and len(text.strip()) > 1)
 
 def parse_command(text: Optional[str]) -> Intent:
     if not text:
@@ -194,6 +277,19 @@ def parse_command(text: Optional[str]) -> Intent:
 
     if not is_valid_command(text):
         return Intent(IntentName.UNKNOWN)
+
+    # -------------------------
+    # 🔥 MALAYALAM DIRECT MAP
+    # -------------------------
+    if is_malayalam(text):
+        if "ക്രോം" in text or "ബ്രൗസർ" in text:
+            return Intent(IntentName.OPEN_BROWSER)
+
+        if "സമയം" in text:
+            return Intent(IntentName.GET_TIME)
+
+        if "ഫോൾഡർ" in text:
+            return Intent(IntentName.CREATE_FOLDER)
 
     # 🔥 Normalize
     text = normalize_text(text)
@@ -203,26 +299,90 @@ def parse_command(text: Optional[str]) -> Intent:
     log(f"Normalized command: {normalized}")
 
     # -------------------------
-    # ✅ 1. STRONG PHRASE MATCH (PRIMARY)
+    # 🔥 SEARCH (HIGH PRIORITY)
     # -------------------------
-    for intent_name, phrases in PHRASE_MAP.items():
-        for phrase in phrases:
-            if phrase in normalized:
-                return Intent(intent_name)
+    if any(word in normalized for word in ["search", "google", "find", "lookup", "look up"]):
+        query = re.sub(r'(search|google|find|lookup|look up)', '', normalized)
+        query = query.strip()
+        if not query:
+            query = "google"
+        return Intent(IntentName.SEARCH_GOOGLE, {"query": query})
+
+    if "search" in normalized or "google" in normalized:
+        query = re.sub(r'(search|google|find|lookup|look up)', '', normalized).strip()
+        
+        if not query:
+            return Intent(IntentName.SEARCH_GOOGLE, {"query": "google"})
+        
+        return Intent(IntentName.SEARCH_GOOGLE, {"query": query})
+
 
     # -------------------------
-    # ✅ 2. NUMBER COMMANDS
+    # 🔥 CREATE FOLDER (SMART)
     # -------------------------
-    match = re.search(r'(?:set|change)?\s*volume\s*(?:to)?\s*(\d{1,3})', normalized)
-    if match:
-        return Intent(IntentName.SET_VOLUME, {"value": int(match.group(1))})
+    if "folder" in normalized:
+        name = normalized.replace("create", "").replace("make", "").replace("folder", "").strip()
+        return Intent(IntentName.CREATE_FOLDER, {"name": name or "new_folder"})
 
-    match = re.search(r'(?:set|change)?\s*brightness\s*(?:to)?\s*(\d{1,3})', normalized)
-    if match:
-        return Intent(IntentName.SET_BRIGHTNESS, {"value": int(match.group(1))})
 
     # -------------------------
-    # ✅ 3. DATE / TIME / DAY
+    # ✅ NUMBER COMMANDS (FIXED)
+    # -------------------------
+
+    # Clean noise words
+    normalized = normalized.replace("around", "")
+    normalized = normalized.replace("maybe", "")
+    normalized = normalized.replace("approximately", "")
+    # 1. sound → volume
+    normalized = normalized.replace("sound", "volume")
+
+    # 2. kurakku variants
+    normalized = normalized.replace("kurakku", "down")
+    normalized = normalized.replace("kurakkan", "down")
+
+    # 3. strong noise removal
+    normalized = re.sub(
+        r'\b(uh|um|like|bro|yo|hey|please|can you|could you|would you|tell me)\b',
+        '',
+        normalized
+    )
+
+    # 🔥 STEP 1: Extract number (DIGIT or WORD)
+    num = None
+
+    # Try digit
+    digit_match = re.search(r'(\d{1,3})', normalized)
+    if digit_match:
+        num = int(digit_match.group(1))
+
+    # Try word number
+    if num is None:
+        num = words_to_number(normalized)
+
+    # 🔥 STEP 2: HANDLE VOLUME
+    if "volume" in normalized:
+        if num is not None:
+            return Intent(IntentName.SET_VOLUME, {"value": num})
+
+        if "up" in normalized or "increase" in normalized:
+            return Intent(IntentName.VOLUME_UP)
+
+        if "down" in normalized or "decrease" in normalized:
+            return Intent(IntentName.VOLUME_DOWN)
+
+    # 🔥 STEP 3: HANDLE BRIGHTNESS
+    if "brightness" in normalized:
+        if num is not None:
+            return Intent(IntentName.SET_BRIGHTNESS, {"value": num})
+
+        if "up" in normalized or "increase" in normalized:
+            return Intent(IntentName.BRIGHTNESS_UP)
+
+        if "down" in normalized or "decrease" in normalized:
+            return Intent(IntentName.BRIGHTNESS_DOWN)
+
+    # -------------------------
+    # ✅ DATE / TIME / DAY
     # -------------------------
     if "naale" in normalized:
         return Intent("GET_TOMORROW")
@@ -243,8 +403,10 @@ def parse_command(text: Optional[str]) -> Intent:
         return Intent(IntentName.GET_DAY)
 
     # -------------------------
-    # ✅ 4. SIMPLE COMMANDS
+    # ✅  SIMPLE COMMANDS
     # -------------------------
+
+    
     if "mute" in normalized:
         return Intent(IntentName.MUTE)
 
@@ -284,21 +446,34 @@ def parse_command(text: Optional[str]) -> Intent:
         name = normalized.replace("open folder", "").strip()
         return Intent(IntentName.OPEN_FOLDER, {"folder_name": name})
 
+
     # -------------------------
-    # ✅ 5. OPEN APP (SMART)
+    # ✅ STRONG PHRASE MATCH (PRIMARY)
     # -------------------------
-    if "chrome" in normalized:
-        return Intent(IntentName.OPEN_APP_DYNAMIC, {"app": "chrome"})
+    for intent_name, phrases in PHRASE_MAP.items():
+        for phrase in phrases:
+            if phrase in normalized:
+                return Intent(intent_name)
 
-    if "browser" in normalized:
-        return Intent(IntentName.OPEN_BROWSER)
 
+    # -------------------------
+    # ✅ OPEN APP (SMART)
+    # -------------------------
+    if "open" in normalized:
+        app = extract_app(normalized)
 
-    if "open" in normalized or "thurakku" in normalized:
-        app = normalized.replace("open", "").replace("thurakku", "").strip()
-        if not app:
-            app = "chrome"
-        return Intent(IntentName.OPEN_APP_DYNAMIC, {"app": app})
+        if app:
+            return Intent(IntentName.OPEN_APP_DYNAMIC, {"app": app})
+        
+        return Intent(IntentName.UNKNOWN)
+
+    if "open" in normalized:
+        words = [w for w in normalized.split() if w not in ["open", "please", "app", "the", "my"]]
+        
+        if not words:
+            return Intent(IntentName.OPEN_APP_DYNAMIC, {"app": "chrome"})
+        
+        return Intent(IntentName.OPEN_APP_DYNAMIC, {"app": " ".join(words)})
 
     # -------------------------
     # ❌ UNKNOWN

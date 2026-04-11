@@ -1,5 +1,4 @@
 from __future__ import annotations
-from Gesture_Controller import run_gesture
 import threading
 import tkinter as tk
 from tkinter import ttk
@@ -150,6 +149,15 @@ class GestVoiceApp:
         intent = parse_command(transcript)
         log(f"Intent detected: {intent.name}")
 
+
+        if intent.name == "UNKNOWN":
+            text = transcript.lower()
+
+            if "open" in text:
+                if any(app in text for app in ["chrome", "browser"]):
+                    intent.name = "OPEN_BROWSER"
+                elif any(app in text for app in ["vscode", "code", "notepad", "spotify", "calculator", "settings"]):
+                    intent.name = "OPEN_APP_DYNAMIC"
 
         if intent.name == "START_GESTURE" and not self.gesture_mode_active:
             log("Gesture mode activated. Use hand gestures to control.")

@@ -80,7 +80,7 @@ test_commands = [
 
 # SET_VOLUME
 ("വോള്യം 50 ആക്കൂ", "SET_VOLUME"),
-("ശബ്ദം കുറയ്ക്കൂ", "SET_VOLUME"),
+("ശബ്ദം കുറയ്ക്കൂ", "VOLUME_DOWN"),
 
 # OPEN_APP_DYNAMIC
 ("കാൽക്കുലേറ്റർ തുറക്കൂ", "OPEN_APP_DYNAMIC"),
@@ -108,7 +108,7 @@ test_commands = [
 
 # SET_VOLUME
 ("volume 50 aakku", "SET_VOLUME"),
-("sound kurakku", "SET_VOLUME"),
+("sound kurakku", "VOLUME_DOWN"),
 
 # OPEN_APP_DYNAMIC
 ("calculator thurakku", "OPEN_APP_DYNAMIC"),
@@ -122,6 +122,60 @@ test_commands = [
 ("search for python tutorials", "SEARCH_GOOGLE"),
 ("set volume to like 40", "SET_VOLUME"),
 ("open my calculator app", "OPEN_APP_DYNAMIC"),
+
+# -------------------------
+# 🔥 HARD / REAL WORLD TESTS
+# -------------------------
+
+# SEARCH (messy)
+("can you search python tutorials for me", "SEARCH_GOOGLE"),
+("please google best ai tools", "SEARCH_GOOGLE"),
+("find machine learning videos", "SEARCH_GOOGLE"),
+("look up data science roadmap", "SEARCH_GOOGLE"),
+("search something about deep learning", "SEARCH_GOOGLE"),
+
+# SET_VOLUME (messy)
+("set volume to like 40 percent", "SET_VOLUME"),
+("increase volume to around 70", "SET_VOLUME"),
+("make volume approximately 30", "SET_VOLUME"),
+("volume maybe 60", "SET_VOLUME"),
+("can you set volume to fifty", "SET_VOLUME"),
+
+# OPEN_APP (messy)
+("can you open my calculator app", "OPEN_APP_DYNAMIC"),
+("please open vscode for me", "OPEN_APP_DYNAMIC"),
+("open the spotify app", "OPEN_APP_DYNAMIC"),
+("hey open settings please", "OPEN_APP_DYNAMIC"),
+("i want to open notepad", "OPEN_APP_DYNAMIC"),
+
+# CREATE_FOLDER (messy)
+("please create a folder named projects", "CREATE_FOLDER"),
+("make a folder called test", "CREATE_FOLDER"),
+("i want a new folder", "CREATE_FOLDER"),
+("create folder for my files", "CREATE_FOLDER"),
+("can you make folder docs", "CREATE_FOLDER"),
+
+# MIXED NOISE
+("uh can you like open chrome please", "OPEN_BROWSER"),
+("hey bro whats the time now", "GET_TIME"),
+("yo open browser quickly", "OPEN_BROWSER"),
+("tell me the time please now", "GET_TIME"),
+
+# MALAYALAM MIXED
+("chrome thurakku please", "OPEN_BROWSER"),
+("time para bro", "GET_TIME"),
+("oru folder create cheyyu please", "CREATE_FOLDER"),
+("volume 70 aakku please", "SET_VOLUME"),
+("google il ai tools search cheyyu", "SEARCH_GOOGLE"),
+
+# EDGE CASES
+("open something", "OPEN_APP_DYNAMIC"),
+("search", "SEARCH_GOOGLE"),
+("volume", "UNKNOWN"),
+("open", "OPEN_APP_DYNAMIC"),
+("time", "GET_TIME"),
+
+
 
 ]
 
@@ -233,3 +287,13 @@ plt.title("Gesture Confusion Matrix")
 
 plt.savefig("gesture_confusion_matrix.png")
 plt.show()
+
+
+print("\n❌ WRONG PREDICTIONS:\n")
+
+for text, expected in test_commands:
+    result = parse_command(text)
+    pred = result.name if not isinstance(result.name, tuple) else result.name[0]
+
+    if pred != expected:
+        print(f"{text}  →  expected: {expected}, got: {pred}")
