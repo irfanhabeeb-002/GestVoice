@@ -68,23 +68,33 @@ class GestVoiceApp:
         self.toggle_button.pack(side="left", padx=10)
 
     def on_toggle_listening(self) -> None:
-        
+
         if not self.voice_active:
             log("Voice system is inactive")
             self.status_var.set("Voice is disabled. Restart app to use again.")
             return
-        
-        if self._listening and self.voice_active:
+
+        # 🔴 STOP LISTENING
+        if self._listening:
             log("Stopping voice listening")
-            self.status_var.set("Stopping...")
+
             self._stop_event.set()
+            self._listening = False
+
+            # 🔥 RESET UI PROPERLY
+            self.status_var.set("Stopped")
+            self.progress.stop()
+            self.toggle_button.config(text="Start Listening", state="normal")
+
             return
 
-
+        # 🟢 START LISTENING
         self._listening = True
         self._stop_event.clear()
+
         self.status_var.set("Listening...")
-        log("Voice listening started") 
+        log("Voice listening started")
+
         self.toggle_button.config(text="Stop Listening", state="normal")
         self.progress.start(10)
 
@@ -182,28 +192,22 @@ class GestVoiceApp:
             self.status_var.set("Gesture Mode Active")
             self.action_var.set("Use gesture. Show exit gesture to return.")
 
-            # 🔥 HIDE VOICE WINDOW
-            self.root.iconify()
-
-            start_gesture()
+            self.root.after(0, self.start_gesture_mode)
             return
 
         if intent.name == "EXIT":
             log("Voice exit command detected")
 
-            stop_gesture()   # 🔥 ensure gesture also stops
-
             self.voice_active = False
             self._stop_event.set()
             self._listening = False
 
-            self.status_var.set("Shutting down...")
-            self.action_var.set("Closing application")
+            # 🔥 STOP UI PROPERLY
+            self.root.after(0, lambda: self.progress.stop())
+            self.root.after(0, lambda: self.status_var.set("Exiting..."))
 
-            self.progress.stop()
-
-            self.root.after(500, self.root.destroy)
-
+            # 🔥 CLOSE APP SAFELY
+            self.root.after(200, self.root.destroy)
             return
 
         print("🎯 Intent: ", intent)
@@ -222,6 +226,33 @@ class GestVoiceApp:
 
         
         self.root.after(0, lambda ar=action_result: self._update_ui(transcript_display, ar))
+
+    def start_gesture_mode(self):
+        from Gesture_Controller import run_gesture
+
+        # hide UI
+        self.root.iconify()
+
+        # run gesture (blocking)
+        run_gesture()
+
+        # 🔥 RESET STATE AFTER EXIT
+        self.gesture_mode_active = False
+        self._listening = False
+        self._stop_event.clear()
+
+        # restore UI
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+        # 🔥 FIX UI PROPERLY
+        self.status_var.set("Back to Voice Mode")
+        self.transcript_var.set("Gesture mode exited")
+        self.action_var.set("Show exit gesture detected")
+
+        self.progress.stop()
+        self.toggle_button.config(text="Start Listening", state="normal")
 
 
     def _update_ui(self, transcript, action_result: ActionResult) -> None:
@@ -243,52 +274,48 @@ class GestVoiceApp:
 
         self.root.after(0, _ui)
 
-def check_gesture_process(app):
-    global gesture_process
+# def check_gesture_process(app):
+#     global gesture_process
 
-    if gesture_process and gesture_process.poll() is not None:
-        log("Gesture ended → resuming voice")
+#     if gesture_process and gesture_process.poll() is not None:
+#         log("Gesture ended → resuming voice")
 
-        gesture_process = None
-        app.gesture_mode_active = False
+#         gesture_process = None
+#         app.gesture_mode_active = False
 
-        # 🔥 RESTORE WINDOW
-        app.root.deiconify()
-        app.root.lift()
-        app.root.attributes('-topmost', True)
-        app.root.after(100, lambda: app.root.attributes('-topmost', False))
+#         # 🔥 RESTORE WINDOW
+#         app.root.deiconify()
+#         app.root.lift()
+#         app.root.attributes('-topmost', True)
+#         app.root.after(100, lambda: app.root.attributes('-topmost', False))
 
-        # UI update
-        app.status_var.set("Back to Voice Mode")
-        app.action_var.set("Gesture mode closed")
+#         # UI update
+#         app.status_var.set("Back to Voice Mode")
+#         app.action_var.set("Gesture mode closed")
 
-        # 🔥 AUTO RESUME
-        app._listening = False
-        app.status_var.set("Back to Voice Mode (Click to start listening)")
-        app.action_var.set("Gesture mode closed")
-        app.progress.stop()
-        app.toggle_button.config(text="Start Listening", state="normal")
+#         # 🔥 AUTO RESUME
+#         app._listening = False
+#         app.status_var.set("Back to Voice Mode (Click to start listening)")
+#         app.action_var.set("Gesture mode closed")
+#         app.progress.stop()
+#         app.toggle_button.config(text="Start Listening", state="normal")
 
-    app.root.after(1000, lambda: check_gesture_process(app))
+#     app.root.after(1000, lambda: check_gesture_process(app))
     
 
-import subprocess
+
 import sys
 
-gesture_process = None
+from Gesture_Controller import run_gesture
+
+gesture_thread = None
 
 def start_gesture():
-    global gesture_process
+    global gesture_thread
 
-    if gesture_process is None or gesture_process.poll() is not None:
-        gesture_process = subprocess.Popen([sys.executable, "Gesture_Controller.py"])
-
-
-def stop_gesture():
-    global gesture_process
-    if gesture_process:
-        gesture_process.terminate()
-        gesture_process = None
+    if gesture_thread is None or not gesture_thread.is_alive():
+        gesture_thread = threading.Thread(target=run_gesture, daemon=True)
+        gesture_thread.start()
 
 
 def main():
@@ -305,7 +332,7 @@ def main():
 
     root.after(300, bring_to_front)
 
-    check_gesture_process(app)
+    # check_gesture_process(app)
 
     root.mainloop()
 

@@ -651,7 +651,7 @@ class GestureController:
                         'tell application "System Events" to keystroke "w" using {command down}'
                     ])
                     self.focused = True
-                if cv2.waitKey(5) & 0xFF == 13:
+                if cv2.waitKey(1) & 0xFF == 13:
                     break
         GestureController.cap.release()
         cv2.destroyAllWindows()
