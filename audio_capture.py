@@ -4,9 +4,9 @@ import io
 import threading
 from typing import Optional
 from logger import log
-import numpy as np
 import sounddevice as sd
-from scipy.io.wavfile import write as wav_write
+import wave
+import numpy as np
 
 
 DEFAULT_SAMPLE_RATE = 16_000
@@ -52,6 +52,10 @@ def record_until_stop(
     audio_int16 = np.int16(audio * 32767)
 
     with io.BytesIO() as buffer:
-        wav_write(buffer, sample_rate, audio_int16)
+        with wave.open(buffer, 'wb') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)  # 16-bit audio
+            wf.setframerate(sample_rate)
+            wf.writeframes(audio_int16.tobytes())
+        
         return buffer.getvalue()
-

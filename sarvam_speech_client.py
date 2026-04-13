@@ -6,6 +6,10 @@ from typing import Optional
 import requests
 
 from config import get_settings
+import certifi
+import ssl
+
+ssl._create_default_https_context = ssl.create_default_context(cafile=certifi.where())
 
 
 class SarvamClientError(Exception):
