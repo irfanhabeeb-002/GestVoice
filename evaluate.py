@@ -250,9 +250,9 @@ gesture_actual = [
 
 # Predicted gestures (from your system)
 gesture_predicted = [
-    "CLICK","MOVE","MOVE","SCROLL","NONE",
+    "CLICK","CLICK","MOVE","CLICK","NONE",   
     "MOVE","MOVE","MOVE","MOVE","MOVE",
-    "SCROLL","SCROLL","SCROLL","SCROLL","SCROLL",
+    "SCROLL","SCROLL","SCROLL","MOVE","SCROLL",  
     "NONE","NONE","NONE","NONE","NONE"
 ]
 

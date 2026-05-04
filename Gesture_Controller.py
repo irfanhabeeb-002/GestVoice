@@ -45,6 +45,7 @@ class Gest(IntEnum):
     # Extra Mappings
     V_GEST = 33
     TWO_FINGER_CLOSED = 34
+    THREE_FINGER = INDEX + MID + RING   # 8 + 4 + 2 = 14
     PINCH_MAJOR = 35
     PINCH_MINOR = 36
 
@@ -464,7 +465,7 @@ class Controller:
             return
 
         # 2. POSITION CONTROL
-        if gesture not in [Gest.PALM, Gest.THUMB]:
+        if gesture in [Gest.V_GEST, Gest.FIST]:
             x,y = Controller.get_position(hand_result)
 
         # flag reset
@@ -490,16 +491,13 @@ class Controller:
                 pyautogui.mouseDown(button = "left")
             pyautogui.moveTo(x, y, duration = 0.1)
 
-        elif gesture == Gest.MID and Controller.flag:
-            pyautogui.click()
-            Controller.flag = False
+        elif gesture == Gest.THREE_FINGER and Controller.flag:
+            if Controller.prev_gesture != Gest.THREE_FINGER:
+                pyautogui.click()
 
         elif gesture == Gest.INDEX and Controller.flag:
-            pyautogui.click(button='right')
-            Controller.flag = False
-
-        elif gesture == Gest.TWO_FINGER_CLOSED and Controller.flag and Controller.exit_counter == 0:
-            Controller.flag = False
+            if Controller.prev_gesture != Gest.INDEX:
+                pyautogui.click(button='right')
 
         elif gesture == Gest.PINCH_MINOR:
             if Controller.pinchminorflag == False:
@@ -512,6 +510,9 @@ class Controller:
                 Controller.pinch_control_init(hand_result)
                 Controller.pinchmajorflag = True
             Controller.pinch_control(hand_result,Controller.changesystembrightness, Controller.changesystemvolume)
+
+            
+        Controller.prev_gesture = gesture
         
 '''
 ----------------------------------------  Main Class  ----------------------------------------
